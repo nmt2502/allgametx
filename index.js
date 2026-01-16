@@ -12,9 +12,22 @@ const APIS = {
   lc: "https://lc79md5-lun8.onrender.com/lc79/md5"
 };
 
-/* ================= LOAD THUẬT TOÁN ================= */
+/* ================= LOAD THUẬT TOÁN (FIX JSON ERROR) ================= */
 function loadAlgo(file) {
-  return JSON.parse(fs.readFileSync(file, "utf8"));
+  const text = fs.readFileSync(file, "utf8").trim();
+  const lines = text.split(/\r?\n/);
+
+  const rules = {};
+  for (let line of lines) {
+    line = line.trim();
+    if (!line || line.startsWith("#")) continue;
+
+    const match = line.match(/^([TX]+)\s*[:=]\s*(.+)$/i);
+    if (!match) continue;
+
+    rules[match[1]] = match[2];
+  }
+  return rules;
 }
 
 const algo = {
@@ -26,137 +39,67 @@ const algo = {
 /* ================= CHUỖI CẦU (CỘNG DÀI) ================= */
 const CHUOI_FILE = "chuoi_cau.json";
 
-function loadChuoi() {
-  if (fs.existsSync(CHUOI_FILE)) {
-    return JSON.parse(fs.readFileSync(CHUOI_FILE, "utf8"));
-  }
-  return { sicbo: "", luck: "", lc: "" };
+let chuoi = fs.existsSync(CHUOI_FILE)
+  ? JSON.parse(fs.readFileSync(CHUOI_FILE))
+  : { sicbo: "", luck: "", lc: "" };
+
+function saveChuoi() {
+  fs.writeFileSync(CHUOI_FILE, JSON.stringify(chuoi, null, 2));
 }
 
-function saveChuoi(data) {
-  fs.writeFileSync(CHUOI_FILE, JSON.stringify(data, null, 2));
-}
+let lastPhien = { sicbo: null, luck: null, lc: null };
 
-let chuoi = loadChuoi();
-
-/* ================= PHIÊN CUỐI ================= */
-let lastPhien = {
-  sicbo: null,
-  luck: null,
-  lc: null
-};
-
-/* ================= UPDATE CHUỖI (CỘNG DÀI) ================= */
+/* ================= UPDATE CHUỖI ================= */
 function updateChuoi(game, ket_qua, phien) {
-  if (!ket_qua || !phien) return;
-
-  // chưa sang phiên mới → không cộng
-  if (lastPhien[game] === phien) return;
+  if (!ket_qua || !phien || lastPhien[game] === phien) return;
 
   const k = ket_qua.toLowerCase();
   const kyTu =
-    k.includes("xỉu") || k.includes("nhỏ") || k.includes("lẻ")
-      ? "X"
-      : "T";
+    k.includes("xỉu") || k.includes("nhỏ") || k.includes("lẻ") ? "X" : "T";
 
-  // ✅ CỘNG DÀI – KHÔNG CẮT
   chuoi[game] += kyTu;
-
   lastPhien[game] = phien;
-  saveChuoi(chuoi);
+  saveChuoi();
 }
 
 /* ================= DỰ ĐOÁN (SO ĐUÔI) ================= */
 function duDoan(game) {
   const rules = algo[game];
-  const chuoi_full = chuoi[game];
+  const s = chuoi[game];
 
   let du_doan = "Chờ cầu";
   let do_tin_cay = 0;
 
-  for (const pattern in rules) {
-    if (chuoi_full.endsWith(pattern)) {
-      du_doan = rules[pattern];
+  for (const p in rules) {
+    if (s.endsWith(p)) {
+      du_doan = rules[p];
       do_tin_cay = 100;
       break;
     }
   }
-
-  return {
-    chuoi_cau: chuoi_full,
-    du_doan,
-    do_tin_cay
-  };
+  return { chuoi_cau: s, du_doan, do_tin_cay };
 }
 
-/* ================= SICBO: VỊ (KHÔNG NHẢY) ================= */
-let lastSicboVi = [];
-
-function getDuDoanViSicbo(du_doan) {
-  if (du_doan !== "Tài" && du_doan !== "Xỉu") {
-    return lastSicboVi;
-  }
-
-  const base =
-    du_doan === "Tài"
-      ? [11,12,13,14,15,16,17,18]
-      : [4,5,6,7,8,9,10];
-
-  let vi;
-  do {
-    vi = base.sort(() => Math.random() - 0.5).slice(0, 4);
-  } while (JSON.stringify(vi) === JSON.stringify(lastSicboVi));
-
-  lastSicboVi = vi;
-  return vi;
-}
-
-/* ================= AUTO FETCH (NỀN) ================= */
-async function fetchGame(game) {
+/* ================= AUTO FETCH ================= */
+async function autoFetch(game) {
   try {
     const r = await fetch(APIS[game]);
-    const data = await r.json();
-
-    const ket_qua = data.ket_qua || data.result;
-    const phien = data.phien_hien_tai || data.phien;
-
-    updateChuoi(game, ket_qua, phien);
-  } catch (e) {
-    console.log("Fetch error:", game, e.message);
-  }
+    const d = await r.json();
+    updateChuoi(game, d.ket_qua || d.result, d.phien_hien_tai || d.phien);
+  } catch {}
 }
 
-// ⏱️ TỰ ĐỘNG LẤY KẾT QUẢ MỖI 5 GIÂY
 setInterval(() => {
-  fetchGame("sicbo");
-  fetchGame("luck");
-  fetchGame("lc");
+  autoFetch("sicbo");
+  autoFetch("luck");
+  autoFetch("lc");
 }, 5000);
 
-/* ================= API CHỈ ĐỌC ================= */
+/* ================= API ================= */
 app.get("/api/:game", (req, res) => {
   const game = req.params.game;
-  if (!algo[game]) {
-    return res.json({ error: "Game không tồn tại" });
-  }
-
-  const { chuoi_cau, du_doan, do_tin_cay } = duDoan(game);
-
-  const out = {
-    game,
-    chuoi_cau,
-    du_doan,
-    do_tin_cay
-  };
-
-  if (game === "sicbo") {
-    out.dudoan_vi = getDuDoanViSicbo(du_doan);
-  }
-
-  res.json(out);
+  if (!algo[game]) return res.json({ error: "Game không tồn tại" });
+  res.json({ game, ...duDoan(game) });
 });
 
-/* ================= START ================= */
-app.listen(PORT, () => {
-  console.log("API running on port " + PORT);
-});
+app.listen(PORT, () => console.log("RUNNING", PORT));
