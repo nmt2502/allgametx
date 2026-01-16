@@ -1,6 +1,7 @@
 const express = require("express");
 const fetch = require("node-fetch");
 const fs = require("fs");
+const path = require("path");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,9 +13,14 @@ const APIS = {
   lc: "https://lc79md5-lun8.onrender.com/lc79/md5"
 };
 
-/* ================= LOAD THUẬT TOÁN ================= */
+/* ================= LOAD THUẬT TOÁN (FIX ENOENT) ================= */
 function loadAlgo(file) {
-  return JSON.parse(fs.readFileSync(file, "utf8"));
+  const filePath = path.join(__dirname, file);
+  if (!fs.existsSync(filePath)) {
+    console.error("❌ Không tìm thấy:", file);
+    return {};
+  }
+  return JSON.parse(fs.readFileSync(filePath, "utf8"));
 }
 
 const algo = {
@@ -24,7 +30,7 @@ const algo = {
 };
 
 /* ================= CHUỖI CẦU (KHÔNG RESET) ================= */
-const CHUOI_FILE = "chuoi_cau.json";
+const CHUOI_FILE = path.join(__dirname, "chuoi_cau.json");
 
 function loadChuoi() {
   if (fs.existsSync(CHUOI_FILE)) {
@@ -42,11 +48,14 @@ let chuoi = loadChuoi();
 function updateChuoi(game, ket_qua) {
   const kq = (ket_qua || "").toLowerCase();
   const kyTu =
-    kq.includes("xỉu") ||
-    kq.includes("nhỏ") ||
-    kq.includes("lẻ")
+    kq.includes("xỉu") || kq.includes("nhỏ") || kq.includes("lẻ")
       ? "X"
       : "T";
+
+  // ❌ Không cho trùng liên tiếp 1 vị
+  if (chuoi[game].endsWith(kyTu)) {
+    return chuoi[game];
+  }
 
   chuoi[game] += kyTu;
   if (chuoi[game].length > 9) {
@@ -73,12 +82,68 @@ function duDoan(game, chuoi_cau) {
   return { result, do_tin_cay };
 }
 
-/* ================= SICBO: TẠO 4 VỊ THEO TỔNG ================= */
+/* ================= SICBO: TẠO 4 VỊ (ĐỔI SỐ, KHÔNG LẶP) ================= */
 function getDuDoanViSicbo(du_doan, tong) {
   if (typeof tong !== "number") return [];
 
   const isTai = du_doan === "Tài";
   const min = isTai ? 11 : 4;
+  const max = isTai ? 18 : 10;
+
+  let base = isTai ? [11, 12, 13, 14, 15, 16, 17, 18] : [4, 5, 6, 7, 8, 9, 10];
+
+  // shuffle
+  base.sort(() => Math.random() - 0.5);
+
+  return base.slice(0, 4);
+}
+
+/* ================= API CHUNG ================= */
+app.get("/api/:game", async (req, res) => {
+  const game = req.params.game;
+  if (!APIS[game]) {
+    return res.json({ error: "Game không tồn tại" });
+  }
+
+  try {
+    const response = await fetch(APIS[game]);
+    const data = await response.json();
+
+    const ket_qua = data.ket_qua || data.result || "";
+    const phien_hien_tai = data.phien_hien_tai || data.phien || "N/A";
+
+    const chuoi_cau = updateChuoi(game, ket_qua);
+    const { result, do_tin_cay } = duDoan(game, chuoi_cau);
+
+    const responseData = {
+      game,
+      phien_hien_tai,
+      chuoi_cau,
+      du_doan: result,
+      do_tin_cay
+    };
+
+    /* ===== RIÊNG SICBO ===== */
+    if (game === "sicbo") {
+      responseData.tong_phien_truoc = data.tong;
+      responseData.xuc_xac = [
+        data.xuc_xac_1,
+        data.xuc_xac_2,
+        data.xuc_xac_3
+      ];
+      responseData.dudoan_vi = getDuDoanViSicbo(result, data.tong);
+    }
+
+    res.json(responseData);
+  } catch (err) {
+    res.json({ error: err.message });
+  }
+});
+
+/* ================= START SERVER ================= */
+app.listen(PORT, () => {
+  console.log("✅ API running on port " + PORT);
+});  const min = isTai ? 11 : 4;
   const max = isTai ? 18 : 10;
 
   let list = [
