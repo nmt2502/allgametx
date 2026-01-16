@@ -1,3 +1,4 @@
+{
 "XTTXTTXX": "Xỉu",
 "TTXTTXXX": "Xỉu",
 "TXTTXXXX": "Xỉu",
@@ -604,4 +605,5 @@
 "XXTTXXXT": "Tài",
 "XTTXXXTT": "Tài",
 "TTXXXTTT": "Xỉu",
-"TXXXTTTX": "Xỉu",
+"TXXXTTTX": "Xỉu"
+}
