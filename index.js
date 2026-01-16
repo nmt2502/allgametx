@@ -39,9 +39,18 @@ function saveChuoi(data) {
 
 let chuoi = loadChuoi();
 
-/* ================= UPDATE CHUỖI ================= */
-function updateChuoi(game, ket_qua) {
-  if (!ket_qua) return chuoi[game];
+/* ================= PHIÊN CUỐI ================= */
+let lastPhien = {
+  sicbo: null,
+  luck: null,
+  lc: null
+};
+
+/* ================= UPDATE CHUỖI (THEO PHIÊN) ================= */
+function updateChuoi(game, ket_qua, phien) {
+  if (!ket_qua || !phien) return;
+
+  if (lastPhien[game] === phien) return; // chưa sang phiên mới
 
   const k = ket_qua.toLowerCase();
   const kyTu =
@@ -54,8 +63,8 @@ function updateChuoi(game, ket_qua) {
     chuoi[game] = chuoi[game].slice(-9);
   }
 
+  lastPhien[game] = phien;
   saveChuoi(chuoi);
-  return chuoi[game];
 }
 
 /* ================= DỰ ĐOÁN (TRÙNG NGUYÊN DÃY) ================= */
@@ -77,12 +86,77 @@ function duDoan(game) {
   return { chuoi_cau, du_doan, do_tin_cay };
 }
 
-/* ================= SICBO VỊ (KHÔNG NHẢY) ================= */
+/* ================= SICBO VỊ (KHÓA) ================= */
 let lastSicboVi = [];
 
 function getDuDoanViSicbo(du_doan) {
   if (du_doan !== "Tài" && du_doan !== "Xỉu") {
     return lastSicboVi;
+  }
+
+  const base =
+    du_doan === "Tài"
+      ? [11,12,13,14,15,16,17,18]
+      : [4,5,6,7,8,9,10];
+
+  let vi;
+  do {
+    vi = base.sort(() => Math.random() - 0.5).slice(0, 4);
+  } while (JSON.stringify(vi) === JSON.stringify(lastSicboVi));
+
+  lastSicboVi = vi;
+  return vi;
+}
+
+/* ================= AUTO FETCH (NỀN) ================= */
+async function fetchGame(game) {
+  try {
+    const r = await fetch(APIS[game]);
+    const data = await r.json();
+
+    const ket_qua = data.ket_qua || data.result;
+    const phien = data.phien_hien_tai || data.phien;
+
+    updateChuoi(game, ket_qua, phien);
+  } catch (e) {
+    console.log("Fetch error:", game, e.message);
+  }
+}
+
+// ⏱️ TỰ ĐỘNG LẤY KẾT QUẢ MỖI 5 GIÂY
+setInterval(() => {
+  fetchGame("sicbo");
+  fetchGame("luck");
+  fetchGame("lc");
+}, 5000);
+
+/* ================= API CHỈ ĐỌC ================= */
+app.get("/api/:game", (req, res) => {
+  const game = req.params.game;
+  if (!algo[game]) {
+    return res.json({ error: "Game không tồn tại" });
+  }
+
+  const { chuoi_cau, du_doan, do_tin_cay } = duDoan(game);
+
+  const out = {
+    game,
+    chuoi_cau,
+    du_doan,
+    do_tin_cay
+  };
+
+  if (game === "sicbo") {
+    out.dudoan_vi = getDuDoanViSicbo(du_doan);
+  }
+
+  res.json(out);
+});
+
+/* ================= START ================= */
+app.listen(PORT, () => {
+  console.log("API running on port " + PORT);
+});    return lastSicboVi;
   }
 
   const base =
