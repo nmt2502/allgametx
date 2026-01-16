@@ -12,22 +12,14 @@ const APIS = {
   lc: "https://lc79md5-lun8.onrender.com/lc79/md5"
 };
 
-/* ================= LOAD THUẬT TOÁN (TXT) ================= */
+/* ================= LOAD THUẬT TOÁN ================= */
 function loadAlgo(file) {
-  const text = fs.readFileSync(file, "utf8").trim();
-  const lines = text.split(/\r?\n/);
-  const rules = {};
-
-  for (let line of lines) {
-    line = line.trim();
-    if (!line || line.startsWith("#")) continue;
-
-    const m = line.match(/^([TX]+)\s*[:=]\s*(.+)$/i);
-    if (!m) continue;
-
-    rules[m[1]] = m[2];
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch (e) {
+    console.error("Lỗi thuật toán:", file);
+    return {};
   }
-  return rules;
 }
 
 const algo = {
@@ -36,121 +28,147 @@ const algo = {
   lc: loadAlgo("./ttoanlc.txt")
 };
 
-/* ================= CHUỖI CẦU (CỘNG DÀI) ================= */
+/* ================= CHUỖI CẦU (KHÔNG RESET) ================= */
 const CHUOI_FILE = "chuoi_cau.json";
-let chuoi = fs.existsSync(CHUOI_FILE)
-  ? JSON.parse(fs.readFileSync(CHUOI_FILE))
-  : { sicbo: "", luck: "", lc: "" };
 
-function saveChuoi() {
-  fs.writeFileSync(CHUOI_FILE, JSON.stringify(chuoi, null, 2));
+function loadChuoi() {
+  if (fs.existsSync(CHUOI_FILE)) {
+    return JSON.parse(fs.readFileSync(CHUOI_FILE, "utf8"));
+  }
+  return { sicbo: "", luck: "", lc: "" };
 }
 
-let lastPhien = { sicbo: null, luck: null, lc: null };
-let lastData = { sicbo: {}, luck: {}, lc: {} };
+function saveChuoi(data) {
+  fs.writeFileSync(CHUOI_FILE, JSON.stringify(data, null, 2));
+}
+
+let chuoi = loadChuoi();
 
 /* ================= UPDATE CHUỖI ================= */
-function updateChuoi(game, ket_qua, phien, raw) {
-  if (!ket_qua || !phien || lastPhien[game] === phien) return;
+function updateChuoi(game, ket_qua) {
+  if (!ket_qua) return;
 
   const k = ket_qua.toLowerCase();
   const kyTu =
-    k.includes("xỉu") || k.includes("nhỏ") || k.includes("lẻ") ? "X" : "T";
+    k.includes("xỉu") || k.includes("nhỏ") || k.includes("lẻ")
+      ? "X"
+      : "T";
 
-  chuoi[game] += kyTu;
-  lastPhien[game] = phien;
-  lastData[game] = raw;
-
-  saveChuoi();
+  chuoi[game] += kyTu;        // cộng dài – KHÔNG cắt
+  saveChuoi(chuoi);
 }
 
-/* ================= RANDOM ĐỘ TIN CẬY ================= */
-function randomTinCay(hasCau) {
-  if (hasCau) return +(75 + Math.random() * 20).toFixed(1); // 75–95
-  return +(30 + Math.random() * 25).toFixed(1);            // 30–55
-}
-
-/* ================= DỰ ĐOÁN (SO ĐUÔI) ================= */
+/* ================= DỰ ĐOÁN (SO TỪ 1 → 9 KÝ TỰ) ================= */
 function duDoan(game) {
   const rules = algo[game];
   const s = chuoi[game];
 
   let du_doan = "Chờ cầu";
-  let do_tin_cay = randomTinCay(false);
+  let do_tin_cay = 0;
 
-  for (const p in rules) {
-    if (s.endsWith(p)) {
-      du_doan = rules[p];
-      do_tin_cay = randomTinCay(true);
-      break;
+  for (let len = 9; len >= 1; len--) {
+    const sub = s.slice(-len);
+    for (const pattern in rules) {
+      if (pattern.endsWith(sub)) {
+        du_doan = rules[pattern];
+        do_tin_cay = Math.min(60 + len * 5, 98);
+        return { chuoi_cau: s, du_doan, do_tin_cay };
+      }
     }
   }
 
   return { chuoi_cau: s, du_doan, do_tin_cay };
 }
 
-/* ================= SICBO: VỊ (KHÔNG NHẢY) ================= */
+/* ================= SICBO: VỊ (KHÔNG NHẢY KHI CHỜ) ================= */
 let lastSicboVi = [];
+let lastPhienSicbo = null;
 
-function getViSicbo(du_doan) {
+function getDuDoanViSicbo(du_doan, phien) {
+  if (phien === lastPhienSicbo) return lastSicboVi;
+  lastPhienSicbo = phien;
+
   if (du_doan !== "Tài" && du_doan !== "Xỉu") return lastSicboVi;
 
-  const base = du_doan === "Tài"
-    ? [11,12,13,14,15,16,17,18]
-    : [4,5,6,7,8,9,10];
+  const base =
+    du_doan === "Tài"
+      ? [11,12,13,14,15,16,17,18]
+      : [4,5,6,7,8,9,10];
 
   let vi;
   do {
-    vi = base.sort(() => Math.random() - 0.5).slice(0, 4);
+    vi = [...base].sort(() => Math.random() - 0.5).slice(0, 4);
   } while (JSON.stringify(vi) === JSON.stringify(lastSicboVi));
 
   lastSicboVi = vi;
   return vi;
 }
 
-/* ================= AUTO FETCH (KHÔNG CẦN CHECK API) ================= */
+/* ================= AUTO FETCH (KHÔNG CẦN AI CHECK API) ================= */
 async function autoFetch(game) {
   try {
     const r = await fetch(APIS[game]);
-    const d = await r.json();
-
-    const phien = d.phien_hien_tai || d.phien;
-    const ket_qua = d.ket_qua || d.result || "";
-
-    updateChuoi(game, ket_qua, phien, d);
-  } catch {}
+    const data = await r.json();
+    const ket_qua = data.ket_qua || data.result;
+    updateChuoi(game, ket_qua);
+  } catch (e) {
+    console.log("Auto fetch lỗi:", game);
+  }
 }
 
 setInterval(() => {
   autoFetch("sicbo");
   autoFetch("luck");
   autoFetch("lc");
-}, 5000);
+}, 15000); // 15s / lần
 
 /* ================= API ================= */
-app.get("/api/:game", (req, res) => {
+app.get("/api/:game", async (req, res) => {
   const game = req.params.game;
-  if (!algo[game]) return res.json({ error: "Game không tồn tại" });
+  if (!APIS[game]) return res.json({ error: "Game không tồn tại" });
 
-  const base = duDoan(game);
-  const data = lastData[game] || {};
+  try {
+    const r = await fetch(APIS[game]);
+    const data = await r.json();
 
-  const out = {
-    game,
-    phien_hien_tai: data.phien_hien_tai || data.phien || null,
-    ...base
-  };
+    const ket_qua = data.ket_qua || data.result || "";
+    const phien_hien_tai =
+      data.phien_hien_tai || data.phien || Date.now();
 
-  if (game === "sicbo") {
-    out.tong_phien_truoc = data.tong;
-    out.xuc_xac = [data.xuc_xac_1, data.xuc_xac_2, data.xuc_xac_3];
-    out.dudoan_vi = getViSicbo(base.du_doan);
+    updateChuoi(game, ket_qua);
+    const kq = duDoan(game);
+
+    const out = {
+      game,
+      phien_hien_tai,
+      chuoi_cau: kq.chuoi_cau,
+      du_doan: kq.du_doan,
+      do_tin_cay:
+        game === "sicbo"
+          ? kq.do_tin_cay
+          : Math.floor(70 + Math.random() * 25)
+    };
+
+    if (game === "sicbo") {
+      out.tong_phien_truoc = data.tong;
+      out.xuc_xac = [
+        data.xuc_xac_1,
+        data.xuc_xac_2,
+        data.xuc_xac_3
+      ];
+      out.dudoan_vi = getDuDoanViSicbo(
+        out.du_doan,
+        phien_hien_tai
+      );
+    }
+
+    res.json(out);
+  } catch (e) {
+    res.json({ error: e.message });
   }
-
-  res.json(out);
 });
 
 /* ================= START ================= */
 app.listen(PORT, () => {
-  console.log("API RUNNING PORT", PORT);
+  console.log("API running on port " + PORT);
 });
