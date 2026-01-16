@@ -23,7 +23,7 @@ const algo = {
   lc: loadAlgo("./ttoanlc.txt")
 };
 
-/* ================= CHUỖI CẦU (KHÔNG RESET) ================= */
+/* ================= CHUỖI CẦU ================= */
 const CHUOI_FILE = "chuoi_cau.json";
 
 function loadChuoi() {
@@ -77,17 +77,18 @@ function duDoan(game) {
   return { chuoi_cau, du_doan, do_tin_cay };
 }
 
-/* ================= SICBO: VỊ (KHÔNG NHẢY) ================= */
+/* ================= SICBO VỊ (KHÔNG NHẢY) ================= */
 let lastSicboVi = [];
 
-function getDuDoanViSicbo(du_doan, tong) {
+function getDuDoanViSicbo(du_doan) {
   if (du_doan !== "Tài" && du_doan !== "Xỉu") {
-    return lastSicboVi; // chờ cầu → giữ nguyên
+    return lastSicboVi;
   }
 
-  const base = du_doan === "Tài"
-    ? [11,12,13,14,15,16,17,18]
-    : [4,5,6,7,8,9,10];
+  const base =
+    du_doan === "Tài"
+      ? [11, 12, 13, 14, 15, 16, 17, 18]
+      : [4, 5, 6, 7, 8, 9, 10];
 
   let vi;
   do {
@@ -98,7 +99,7 @@ function getDuDoanViSicbo(du_doan, tong) {
   return vi;
 }
 
-/* ================= API CHUNG ================= */
+/* ================= API ================= */
 app.get("/api/:game", async (req, res) => {
   const game = req.params.game;
   if (!APIS[game]) {
@@ -130,7 +131,7 @@ app.get("/api/:game", async (req, res) => {
         data.xuc_xac_2,
         data.xuc_xac_3
       ];
-      out.dudoan_vi = getDuDoanViSicbo(du_doan, data.tong);
+      out.dudoan_vi = getDuDoanViSicbo(du_doan);
     }
 
     res.json(out);
@@ -142,84 +143,4 @@ app.get("/api/:game", async (req, res) => {
 /* ================= START ================= */
 app.listen(PORT, () => {
   console.log("API running on port " + PORT);
-});  return chuoi[game];
-}
-
-/* ================= DỰ ĐOÁN ================= */
-function duDoan(game, chuoi_cau) {
-  const rules = algo[game];
-  let result = "Chờ cầu";
-  let do_tin_cay = 0;
-
-  for (const pattern in rules) {
-    if (chuoi_cau.endsWith(pattern)) {
-      result = rules[pattern];
-      do_tin_cay = Math.round((pattern.length / 9) * 100);
-      break;
-    }
-  }
-  return { result, do_tin_cay };
-}
-
-/* ================= SICBO: DỰ ĐOÁN VỊ (KHÔNG NHẢY KHI CHỜ CẦU) ================= */
-let lastSicboVi = [];
-
-function getDuDoanViSicbo(du_doan, tong) {
-  // chờ cầu -> giữ nguyên vị cũ
-  if (du_doan !== "Tài" && du_doan !== "Xỉu") {
-    return lastSicboVi;
-  }
-
-  const base = du_doan === "Tài"
-    ? [11,12,13,14,15,16,17,18]
-    : [4,5,6,7,8,9,10];
-
-  // trộn số, không lặp liên tục
-  const vi = base.sort(() => Math.random() - 0.5).slice(0, 4);
-
-  lastSicboVi = vi;
-  return vi;
-}
-
-/* ================= API CHUNG ================= */
-app.get("/api/:game", async (req, res) => {
-  const game = req.params.game;
-  if (!APIS[game]) {
-    return res.json({ error: "Game không tồn tại" });
-  }
-
-  try {
-    const response = await fetch(APIS[game]);
-    const data = await response.json();
-
-    const ket_qua = data.ket_qua || data.result || "";
-    const phien_hien_tai = data.phien_hien_tai || data.phien || "N/A";
-
-    const chuoi_cau = updateChuoi(game, ket_qua);
-    const { result, do_tin_cay } = duDoan(game, chuoi_cau);
-
-    const out = {
-      game,
-      phien_hien_tai,
-      chuoi_cau,
-      du_doan: result,
-      do_tin_cay
-    };
-
-    /* ===== RIÊNG SICBO ===== */
-    if (game === "sicbo") {
-      out.tong_phien_truoc = data.tong;
-      out.xuc_xac = [data.xuc_xac_1, data.xuc_xac_2, data.xuc_xac_3];
-      out.dudoan_vi = getDuDoanViSicbo(result, data.tong);
-    }
-
-    res.json(out);
-  } catch (err) {
-    res.json({ error: err.message });
-  }
-});
-
-/* ================= START SERVER ================= */
-app.listen(PORT, () => {
-  console.log("✅ API running on port " + PORT);
 });
