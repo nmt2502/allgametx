@@ -157,7 +157,6 @@ app.get("/api/:game", (req, res) => {
 app.listen(PORT, () => {
   console.log("API running on port " + PORT);
 });    return lastSicboVi;
-  }
 
   const base =
     du_doan === "Tài"
