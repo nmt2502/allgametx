@@ -1,9 +1,70 @@
-TXXXXXTX = T
-XTTXTTTT = X
-XXXTXXXX = X
-TXTXTTTT = T
-XTXTXXXX = X
-XXXTXXXX = T
-XXTXTXTX = X
-XXTXXTXX = X
-TTXTTXTT = T
+{
+  "T": "Tài",
+  "X": "Xỉu",
+
+  "TT": "Tài",
+  "XX": "Xỉu",
+
+  "TTT": "Tài",
+  "XXX": "Xỉu",
+
+  "TX": "Xỉu",
+  "XT": "Tài",
+
+  "TXX": "Xỉu",
+  "XTT": "Tài",
+
+  "TTX": "Tài",
+  "XXT": "Xỉu",
+
+  "TTTT": "Tài",
+  "XXXX": "Xỉu",
+
+  "TTXX": "Xỉu",
+  "XXTT": "Tài",
+
+  "TXTX": "Tài",
+  "XTXT": "Xỉu",
+
+  "TTTXX": "Tài",
+  "XXXTT": "Xỉu",
+
+  "TXXTT": "Tài",
+  "XTTXX": "Xỉu",
+
+  "TTTTX": "Tài",
+  "XXXXT": "Xỉu",
+
+  "TTXXX": "Xỉu",
+  "XXTTT": "Tài",
+
+  "TTTTTT": "Tài",
+  "XXXXXX": "Xỉu",
+
+  "TTTXXX": "Tài",
+  "XXXTTT": "Xỉu",
+
+  "TXXTXX": "Xỉu",
+  "XTTXTT": "Tài",
+
+  "TTTXXTT": "Tài",
+  "XXXTTXX": "Xỉu",
+
+  "TTXXTTX": "Tài",
+  "XXTTXXT": "Xỉu",
+
+  "TTTTXXX": "Xỉu",
+  "XXXXTTT": "Tài",
+
+  "TTTTTTTT": "Tài",
+  "XXXXXXXX": "Xỉu",
+
+  "TTTXXXTT": "Tài",
+  "XXXTTTXX": "Xỉu",
+
+  "TTXXTTXX": "Xỉu",
+  "XXTTXXTT": "Tài",
+
+  "TTTXXXTTT": "Tài",
+  "XXXTTTXXX": "Xỉu"
+}
